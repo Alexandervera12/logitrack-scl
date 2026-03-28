@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { GoogleMap, useJsApiLoader, MarkerClusterer, Marker, InfoWindow } from "@react-google-maps/api";
+import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-maps/api";
 
 const VENTANA_PALETTE = {
   "V9":  "#3b82f6", "V10": "#f97316", "V11": "#22c55e", "V12": "#a855f7",
@@ -7,12 +7,13 @@ const VENTANA_PALETTE = {
   "V17": "#6366f1", "V18": "#84cc16", "V19": "#06b6d4", "V20": "#f43f5e",
 };
 const VENTANAS = Object.keys(VENTANA_PALETTE);
+const MAX_MARKERS = 300;
 
 function makePinSvg(hex) {
   const c = hex || "#3b82f6";
   return {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="32" viewBox="0 0 24 32"><path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32S24 21 24 12C24 5.37 18.63 0 12 0Z" fill="${c}"/><circle cx="12" cy="12" r="5" fill="white" opacity="0.9"/></svg>`
+      `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="30" viewBox="0 0 22 30"><path d="M11 0C4.93 0 0 4.93 0 11C0 19.25 11 30 11 30S22 19.25 22 11C22 4.93 17.07 0 11 0Z" fill="${c}"/><circle cx="11" cy="11" r="4.5" fill="white" opacity="0.9"/></svg>`
     )}`,
     scaledSize: { width: 22, height: 30 },
     anchor: { x: 11, y: 30 },
@@ -38,7 +39,7 @@ const MAP_STYLE_LIGHT = [
 
 const MOCK_DATA = [
   { id: "SG-001", address: "Av. Providencia 1234, Providencia", window: "V9",  lat: -33.432, lng: -70.608 },
-  { id: "SG-002", address: "Av. Apoquindo 4500, Las Condes",     window: "V10", lat: -33.415, lng: -70.580 },
+  { id: "SG-002", address: "Av. Apoquindo 4500, Las Condes",    window: "V10", lat: -33.415, lng: -70.580 },
 ];
 
 export default function App() {
@@ -63,7 +64,14 @@ export default function App() {
       const res  = await fetch(SHEETS_URL);
       const json = await res.json();
       if (Array.isArray(json) && json.length > 0) {
-        setData(json);
+        // Validar que lat/lng sean números válidos
+        const clean = json.filter(d =>
+          d.id && d.address && d.window &&
+          typeof d.lat === "number" && !isNaN(d.lat) &&
+          typeof d.lng === "number" && !isNaN(d.lng) &&
+          d.lat !== 0 && d.lng !== 0
+        );
+        setData(clean);
         setLastSync(new Date().toLocaleTimeString("es-CL"));
       }
     } catch (e) {
@@ -85,6 +93,10 @@ export default function App() {
     return matchFilter && (d.id.toLowerCase().includes(q) || d.address.toLowerCase().includes(q));
   });
 
+  // Limitar markers en el mapa para no trabar Google Maps
+  const markersEnMapa = filtered.slice(0, MAX_MARKERS);
+  const hayMas = filtered.length > MAX_MARKERS;
+
   const countByWindow = VENTANAS.reduce((acc, v) => {
     acc[v] = filtered.filter(d => d.window === v).length;
     return acc;
@@ -96,7 +108,7 @@ export default function App() {
     setSelected(d);
     if (mapRef.current) {
       mapRef.current.panTo({ lat: d.lat, lng: d.lng });
-      mapRef.current.setZoom(15);
+      mapRef.current.setZoom(16);
     }
   }
 
@@ -137,9 +149,18 @@ export default function App() {
           </div>
         </div>
 
+        {/* Aviso si hay más de MAX_MARKERS */}
+        {hayMas && filter === "all" && !search && (
+          <div style={{ padding: "8px 14px", background: "#1e2436", borderBottom: `1px solid ${border}` }}>
+            <p style={{ fontSize: 11, color: "#f59e0b", lineHeight: 1.5 }}>
+              Mostrando {MAX_MARKERS} de {filtered.length} pins. Filtra por ventana para ver todos.
+            </p>
+          </div>
+        )}
+
         {/* Search */}
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${border}` }}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por SG"
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por ID o dirección..."
             style={{ width: "100%", background: inputBg, border: `1px solid ${inputBdr}`, color: textPri, fontSize: 13, padding: "8px 12px", borderRadius: 8, outline: "none", boxSizing: "border-box" }} />
         </div>
 
@@ -196,23 +217,21 @@ export default function App() {
               center={MAP_CENTER} zoom={11} onLoad={onLoad}
               options={{ styles: dark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT, zoomControl: true }}
             >
-              <MarkerClusterer>
-                {(clusterer) =>
-                  filtered.map(d => (
-                    <Marker
-                      key={d.id}
-                      position={{ lat: d.lat, lng: d.lng }}
-                      icon={makePinSvg(VENTANA_PALETTE[d.window])}
-                      clusterer={clusterer}
-                      onClick={() => setSelected(d)}
-                    />
-                  ))
-                }
-              </MarkerClusterer>
+              {markersEnMapa.map(d => (
+                <Marker
+                  key={d.id}
+                  position={{ lat: d.lat, lng: d.lng }}
+                  icon={makePinSvg(VENTANA_PALETTE[d.window])}
+                  onClick={() => setSelected(d)}
+                />
+              ))}
 
               {selected && (
-                <InfoWindow position={{ lat: selected.lat, lng: selected.lng }} onCloseClick={() => setSelected(null)}>
-                  <div style={{ fontFamily: "'DM Sans', sans-serif", minWidth: 160, padding: 4 }}>
+                <InfoWindow
+                  position={{ lat: selected.lat, lng: selected.lng }}
+                  onCloseClick={() => setSelected(null)}
+                >
+                  <div style={{ fontFamily: "sans-serif", minWidth: 160, padding: 4 }}>
                     <p style={{ fontWeight: 700, fontSize: 14, marginBottom: 4, color: "#0f172a" }}>{selected.id}</p>
                     <p style={{ fontSize: 12, color: "#475569", marginBottom: 6, lineHeight: 1.4 }}>{selected.address}</p>
                     <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 8, fontWeight: 600, background: VENTANA_PALETTE[selected.window] + "25", color: VENTANA_PALETTE[selected.window] }}>{selected.window}</span>

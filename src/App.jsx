@@ -111,7 +111,7 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22d3ee" }} />
-              <span style={{ fontSize: 16, fontWeight: 600, color: textPrimary }}>LogiTrack</span>
+              <span style={{ fontSize: 16, fontWeight: 600, color: textPrimary }}>Zubale Maps</span>
             </div>
             <button
               onClick={() => setDarkMap(d => !d)}

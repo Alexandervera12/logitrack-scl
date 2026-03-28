@@ -1,7 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { GoogleMap, useJsApiLoader, Marker, InfoWindow } from "@react-google-maps/api";
+import { GoogleMap, useJsApiLoader, MarkerClusterer, Marker, InfoWindow } from "@react-google-maps/api";
 
-// Colores para V9-V20
 const VENTANA_PALETTE = {
   "V9":  "#3b82f6", "V10": "#f97316", "V11": "#22c55e", "V12": "#a855f7",
   "V13": "#ef4444", "V14": "#14b8a6", "V15": "#f59e0b", "V16": "#ec4899",
@@ -13,10 +12,10 @@ function makePinSvg(hex) {
   const c = hex || "#3b82f6";
   return {
     url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
-      `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="40" viewBox="0 0 32 40"><path d="M16 0C7.16 0 0 7.16 0 16C0 28 16 40 16 40S32 28 32 16C32 7.16 24.84 0 16 0Z" fill="${c}"/><circle cx="16" cy="16" r="7" fill="white" opacity="0.9"/></svg>`
+      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="32" viewBox="0 0 24 32"><path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32S24 21 24 12C24 5.37 18.63 0 12 0Z" fill="${c}"/><circle cx="12" cy="12" r="5" fill="white" opacity="0.9"/></svg>`
     )}`,
-    scaledSize: { width: 28, height: 36 },
-    anchor: { x: 14, y: 36 },
+    scaledSize: { width: 22, height: 30 },
+    anchor: { x: 11, y: 30 },
   };
 }
 
@@ -37,14 +36,9 @@ const MAP_STYLE_LIGHT = [
   { featureType: "transit", stylers: [{ visibility: "off" }] },
 ];
 
-// Datos mock de respaldo (se usan si no hay SHEETS_URL configurada)
 const MOCK_DATA = [
-  { id: "SG-001", address: "Av. Providencia 1234, Providencia",   window: "V9",  lat: -33.432, lng: -70.608 },
-  { id: "SG-002", address: "Av. Apoquindo 4500, Las Condes",       window: "V10", lat: -33.415, lng: -70.580 },
-  { id: "SG-003", address: "Av. Vicuña Mackenna 7890, La Florida", window: "V11", lat: -33.520, lng: -70.600 },
-  { id: "SG-004", address: "Av. Gran Avenida 3210, San Miguel",    window: "V12", lat: -33.499, lng: -70.659 },
-  { id: "SG-005", address: "Av. Grecia 680, Nuñoa",                window: "V13", lat: -33.456, lng: -70.601 },
-  { id: "SG-006", address: "Av. Las Rejas Norte 100, Pudahuel",    window: "V14", lat: -33.435, lng: -70.731 },
+  { id: "SG-001", address: "Av. Providencia 1234, Providencia", window: "V9",  lat: -33.432, lng: -70.608 },
+  { id: "SG-002", address: "Av. Apoquindo 4500, Las Condes",     window: "V10", lat: -33.415, lng: -70.580 },
 ];
 
 export default function App() {
@@ -62,7 +56,6 @@ export default function App() {
   const [darkMap, setDarkMap]   = useState(true);
   const mapRef = useRef(null);
 
-  // ── Fetch desde Google Sheets ──────────────────────────────────
   const fetchSheets = useCallback(async () => {
     if (!SHEETS_URL) return;
     setLoading(true);
@@ -86,7 +79,6 @@ export default function App() {
     return () => clearInterval(interval);
   }, [fetchSheets]);
 
-  // ── Filtros ────────────────────────────────────────────────────
   const filtered = data.filter(d => {
     const matchFilter = filter === "all" || d.window === filter;
     const q = search.toLowerCase();
@@ -102,22 +94,23 @@ export default function App() {
 
   function goTo(d) {
     setSelected(d);
-    if (mapRef.current) mapRef.current.panTo({ lat: d.lat, lng: d.lng });
+    if (mapRef.current) {
+      mapRef.current.panTo({ lat: d.lat, lng: d.lng });
+      mapRef.current.setZoom(15);
+    }
   }
 
-  // ── Estilos dinámicos ──────────────────────────────────────────
-  const dark       = darkMap;
-  const border     = dark ? "#1e2433" : "#e2e8f0";
-  const textPri    = dark ? "#f1f5f9" : "#0f172a";
-  const textMuted  = dark ? "#64748b" : "#94a3b8";
-  const inputBg    = dark ? "#1e2436" : "#f8fafc";
-  const inputBdr   = dark ? "#2a3044" : "#cbd5e1";
-  const sideBg     = dark ? "#151820" : "#ffffff";
+  const dark      = darkMap;
+  const border    = dark ? "#1e2433" : "#e2e8f0";
+  const textPri   = dark ? "#f1f5f9" : "#0f172a";
+  const textMuted = dark ? "#64748b" : "#94a3b8";
+  const inputBg   = dark ? "#1e2436" : "#f8fafc";
+  const inputBdr  = dark ? "#2a3044" : "#cbd5e1";
+  const sideBg    = dark ? "#151820" : "#ffffff";
 
   return (
     <div style={{ display: "flex", height: "100vh", background: dark ? "#0f1117" : "#f1f5f9", fontFamily: "'DM Sans', sans-serif" }}>
 
-      {/* ── Sidebar ─────────────────────────────────────────── */}
       <aside style={{ width: 290, minWidth: 290, background: sideBg, borderRight: `1px solid ${border}`, display: "flex", flexDirection: "column", overflow: "hidden" }}>
 
         {/* Header */}
@@ -125,22 +118,16 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#22d3ee" }} />
-              <span style={{ fontSize: 16, fontWeight: 600, color: textPri }}>LogiTrack</span>
+              <span style={{ fontSize: 16, fontWeight: 600, color: textPri }}>Zubale Maps</span>
             </div>
             <button onClick={() => setDarkMap(d => !d)} style={{ background: inputBg, border: `1px solid ${inputBdr}`, borderRadius: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, fontWeight: 500, color: textMuted }}>
               {dark ? "☀ Claro" : "☾ Oscuro"}
             </button>
           </div>
-
-          {/* Status pills */}
           <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
             <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: "#0f2e1e", color: "#6ee7b7", fontWeight: 500 }}>● En línea</span>
             {SHEETS_URL ? (
-              <span
-                onClick={fetchSheets}
-                title="Clic para actualizar"
-                style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: loading ? "#2c1006" : "#0c1d35", color: loading ? "#fdba74" : "#93c5fd", fontWeight: 500, cursor: "pointer" }}
-              >
+              <span onClick={fetchSheets} style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: loading ? "#2c1006" : "#0c1d35", color: loading ? "#fdba74" : "#93c5fd", fontWeight: 500, cursor: "pointer" }}>
                 {loading ? "⟳ Cargando..." : lastSync ? `⟳ ${lastSync}` : "⟳ Conectando..."}
               </span>
             ) : (
@@ -152,35 +139,27 @@ export default function App() {
 
         {/* Search */}
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${border}` }}>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Buscar por ID o dirección..."
-            style={{ width: "100%", background: inputBg, border: `1px solid ${inputBdr}`, color: textPri, fontSize: 13, padding: "8px 12px", borderRadius: 8, outline: "none", boxSizing: "border-box" }}
-          />
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por SG"
+            style={{ width: "100%", background: inputBg, border: `1px solid ${inputBdr}`, color: textPri, fontSize: 13, padding: "8px 12px", borderRadius: 8, outline: "none", boxSizing: "border-box" }} />
         </div>
 
-        {/* Filtro select */}
+        {/* Filtro */}
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${border}` }}>
           <p style={{ fontSize: 11, color: textMuted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.06em" }}>Ventana de entrega</p>
-          <select
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            style={{ width: "100%", background: inputBg, border: `1px solid ${inputBdr}`, color: textPri, fontSize: 13, padding: "8px 12px", borderRadius: 8, outline: "none", cursor: "pointer", boxSizing: "border-box" }}
-          >
+          <select value={filter} onChange={e => setFilter(e.target.value)}
+            style={{ width: "100%", background: inputBg, border: `1px solid ${inputBdr}`, color: textPri, fontSize: 13, padding: "8px 12px", borderRadius: 8, outline: "none", cursor: "pointer", boxSizing: "border-box" }}>
             <option value="all">Todas las ventanas</option>
             {VENTANAS.map(v => <option key={v} value={v}>{v}</option>)}
           </select>
         </div>
 
-        {/* Leyenda clicable */}
+        {/* Leyenda */}
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${border}` }}>
           <p style={{ fontSize: 11, color: textMuted, marginBottom: 8, textTransform: "uppercase", letterSpacing: "0.06em" }}>Leyenda — clic para filtrar</p>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3px 6px" }}>
             {VENTANAS.map(v => (
               <div key={v} onClick={() => setFilter(filter === v ? "all" : v)}
-                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", padding: "4px 7px", borderRadius: 6, background: filter === v ? VENTANA_PALETTE[v] + "22" : "transparent", border: `1px solid ${filter === v ? VENTANA_PALETTE[v] + "66" : "transparent"}` }}
-              >
+                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, cursor: "pointer", padding: "4px 7px", borderRadius: 6, background: filter === v ? VENTANA_PALETTE[v] + "22" : "transparent", border: `1px solid ${filter === v ? VENTANA_PALETTE[v] + "66" : "transparent"}` }}>
                 <div style={{ width: 9, height: 9, borderRadius: "50%", background: VENTANA_PALETTE[v], flexShrink: 0 }} />
                 <span style={{ fontWeight: filter === v ? 600 : 400, color: filter === v ? VENTANA_PALETTE[v] : textMuted }}>{v}</span>
                 <span style={{ marginLeft: "auto", fontSize: 10, color: textMuted }}>{countByWindow[v] || 0}</span>
@@ -195,8 +174,7 @@ export default function App() {
             ? <p style={{ textAlign: "center", color: textMuted, fontSize: 13, padding: 20 }}>Sin resultados</p>
             : filtered.map(d => (
               <div key={d.id} onClick={() => goTo(d)}
-                style={{ padding: "9px 12px", borderRadius: 8, cursor: "pointer", marginBottom: 3, border: `1px solid ${selected?.id === d.id ? VENTANA_PALETTE[d.window] : "transparent"}`, background: selected?.id === d.id ? VENTANA_PALETTE[d.window] + "15" : "transparent", transition: "all 0.15s" }}
-              >
+                style={{ padding: "9px 12px", borderRadius: 8, cursor: "pointer", marginBottom: 3, border: `1px solid ${selected?.id === d.id ? VENTANA_PALETTE[d.window] : "transparent"}`, background: selected?.id === d.id ? VENTANA_PALETTE[d.window] + "15" : "transparent", transition: "all 0.15s" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
                   <span style={{ fontSize: 13, fontWeight: 600, color: textPri }}>{d.id}</span>
                   <span style={{ fontSize: 10, padding: "2px 7px", borderRadius: 10, fontWeight: 600, background: VENTANA_PALETTE[d.window] + "28", color: VENTANA_PALETTE[d.window] }}>{d.window}</span>
@@ -208,7 +186,7 @@ export default function App() {
         </div>
       </aside>
 
-      {/* ── Mapa ────────────────────────────────────────────── */}
+      {/* Mapa */}
       <div style={{ flex: 1, position: "relative" }}>
         {!isLoaded
           ? <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "#475569" }}>Cargando mapa...</div>
@@ -218,9 +196,20 @@ export default function App() {
               center={MAP_CENTER} zoom={11} onLoad={onLoad}
               options={{ styles: dark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT, zoomControl: true }}
             >
-              {filtered.map(d => (
-                <Marker key={d.id} position={{ lat: d.lat, lng: d.lng }} icon={makePinSvg(VENTANA_PALETTE[d.window])} onClick={() => setSelected(d)} />
-              ))}
+              <MarkerClusterer>
+                {(clusterer) =>
+                  filtered.map(d => (
+                    <Marker
+                      key={d.id}
+                      position={{ lat: d.lat, lng: d.lng }}
+                      icon={makePinSvg(VENTANA_PALETTE[d.window])}
+                      clusterer={clusterer}
+                      onClick={() => setSelected(d)}
+                    />
+                  ))
+                }
+              </MarkerClusterer>
+
               {selected && (
                 <InfoWindow position={{ lat: selected.lat, lng: selected.lng }} onCloseClick={() => setSelected(null)}>
                   <div style={{ fontFamily: "'DM Sans', sans-serif", minWidth: 160, padding: 4 }}>

@@ -7,7 +7,6 @@ const VENTANA_PALETTE = {
   "V17": "#6366f1", "V18": "#84cc16", "V19": "#06b6d4", "V20": "#f43f5e",
 };
 const VENTANAS = Object.keys(VENTANA_PALETTE);
-const MAX_MARKERS = 300;
 
 function makePinSvg(hex) {
   const c = hex || "#3b82f6";
@@ -64,7 +63,6 @@ export default function App() {
       const res  = await fetch(SHEETS_URL);
       const json = await res.json();
       if (Array.isArray(json) && json.length > 0) {
-        // Validar que lat/lng sean números válidos
         const clean = json.filter(d =>
           d.id && d.address && d.window &&
           typeof d.lat === "number" && !isNaN(d.lat) &&
@@ -92,10 +90,6 @@ export default function App() {
     const q = search.toLowerCase();
     return matchFilter && (d.id.toLowerCase().includes(q) || d.address.toLowerCase().includes(q));
   });
-
-  // Limitar markers en el mapa para no trabar Google Maps
-  const markersEnMapa = filtered.slice(0, MAX_MARKERS);
-  const hayMas = filtered.length > MAX_MARKERS;
 
   const countByWindow = VENTANAS.reduce((acc, v) => {
     acc[v] = filtered.filter(d => d.window === v).length;
@@ -149,18 +143,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* Aviso si hay más de MAX_MARKERS */}
-        {hayMas && filter === "all" && !search && (
-          <div style={{ padding: "8px 14px", background: "#1e2436", borderBottom: `1px solid ${border}` }}>
-            <p style={{ fontSize: 11, color: "#f59e0b", lineHeight: 1.5 }}>
-              Mostrando {MAX_MARKERS} de {filtered.length} pins. Filtra por ventana para ver todos.
-            </p>
-          </div>
-        )}
-
         {/* Search */}
         <div style={{ padding: "10px 14px", borderBottom: `1px solid ${border}` }}>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por ID o dirección..."
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar por SG"
             style={{ width: "100%", background: inputBg, border: `1px solid ${inputBdr}`, color: textPri, fontSize: 13, padding: "8px 12px", borderRadius: 8, outline: "none", boxSizing: "border-box" }} />
         </div>
 
@@ -217,7 +202,7 @@ export default function App() {
               center={MAP_CENTER} zoom={11} onLoad={onLoad}
               options={{ styles: dark ? MAP_STYLE_DARK : MAP_STYLE_LIGHT, zoomControl: true }}
             >
-              {markersEnMapa.map(d => (
+              {filtered.map(d => (
                 <Marker
                   key={d.id}
                   position={{ lat: d.lat, lng: d.lng }}
